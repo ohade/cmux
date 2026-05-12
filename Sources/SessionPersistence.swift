@@ -136,6 +136,25 @@ enum SessionRestorePolicy {
     }
 }
 
+enum SessionSnapshotBuildReason: String, Sendable {
+    case autosave
+    case termination
+    case updateRelaunch
+}
+
+/// Extension points for code that needs to coordinate with cmux's existing
+/// session snapshot and restore flow without changing every save/restore caller.
+struct SessionRestoreLifecycleHooks {
+    /// Gives callers a synchronous chance to defer or cancel an update relaunch.
+    var shouldProceedWithUpdateRelaunch: (_ source: String) -> Bool = { _ in true }
+    /// Lets callers contribute restorable agent metadata while a snapshot is built.
+    var restorableAgentIndexForSnapshot: (_ reason: SessionSnapshotBuildReason) -> RestorableAgentSessionIndex? = { _ in nil }
+    /// Lets callers adjust a loaded startup snapshot before workspace restore consumes it.
+    var overlayStartupSessionSnapshot: (_ snapshot: AppSessionSnapshot) -> AppSessionSnapshot = { $0 }
+
+    static let noop = SessionRestoreLifecycleHooks()
+}
+
 struct SessionRectSnapshot: Codable, Equatable, Sendable {
     let x: Double
     let y: Double

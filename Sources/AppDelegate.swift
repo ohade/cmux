@@ -855,7 +855,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Tracks the cascade point for new windows, matching Ghostty's upstream algorithm.
     /// Reset to `.zero` so the first window seeds the point from its own position.
     private var lastCascadePoint = NSPoint.zero
+    var sessionRestoreLifecycleHooks: SessionRestoreLifecycleHooks = .noop
     private var startupSessionSnapshot: AppSessionSnapshot?
+    private var isSavingUpdateRelaunchSnapshot = false
     private var didPrepareStartupSessionSnapshot = false
     var didAttemptStartupSessionRestore = false
     private var isApplyingSessionRestore = false
@@ -1584,7 +1586,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func persistSessionForUpdateRelaunch() {
         isTerminatingApp = true
+        isSavingUpdateRelaunchSnapshot = true
+        defer { isSavingUpdateRelaunchSnapshot = false }
         _ = saveSessionSnapshot(includeScrollback: true, removeWhenEmpty: false)
+    }
+
+    func shouldProceedWithUpdateRelaunch(source: String) -> Bool {
+        sessionRestoreLifecycleHooks.shouldProceedWithUpdateRelaunch(source)
     }
 
     func configure(tabManager: TabManager, notificationStore: TerminalNotificationStore, sidebarState: SidebarState) {
@@ -2522,7 +2530,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         Self.removeLegacyPersistedWindowGeometry()
         SessionPersistenceStore.syncManualRestoreSnapshotCache()
         guard SessionRestorePolicy.shouldAttemptRestore() else { return }
-        startupSessionSnapshot = SessionPersistenceStore.load()
+        startupSessionSnapshot = SessionPersistenceStore.load().map {
+            sessionRestoreLifecycleHooks.overlayStartupSessionSnapshot($0)
+        }
     }
 
     nonisolated static func decodedPersistedWindowGeometryData(_ data: Data) -> PersistedWindowGeometry? {
@@ -3328,6 +3338,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         !isTerminatingApp
     }
 
+    private func sessionSnapshotBuildReason(includeScrollback: Bool) -> SessionSnapshotBuildReason {
+        if isSavingUpdateRelaunchSnapshot {
+            return .updateRelaunch
+        }
+        if isTerminatingApp || includeScrollback {
+            return .termination
+        }
+        return .autosave
+    }
+
     private func remainingSessionAutosaveTypingQuietPeriod(
         nowUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> TimeInterval? {
@@ -3537,7 +3557,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let contexts = sortedMainWindowContextsForSessionSnapshot()
 
         guard !contexts.isEmpty else { return nil }
-        let restorableAgentIndex = suppliedRestorableAgentIndex ?? RestorableAgentSessionIndex.load()
+        let snapshotReason = sessionSnapshotBuildReason(includeScrollback: includeScrollback)
+        let restorableAgentIndex = suppliedRestorableAgentIndex
+            ?? sessionRestoreLifecycleHooks.restorableAgentIndexForSnapshot(snapshotReason)
+            ?? RestorableAgentSessionIndex.load()
 
         let windows: [SessionWindowSnapshot] = contexts
             .prefix(SessionPersistencePolicy.maxWindowsPerSnapshot)

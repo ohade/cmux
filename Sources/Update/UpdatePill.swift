@@ -192,7 +192,7 @@ struct InstallUpdateMenuItem: View {
     var body: some View {
         if model.state.isInstallable {
             Button(String(localized: "update.installAndRelaunch", defaultValue: "Install Update and Relaunch")) {
-                model.state.confirm()
+                AppDelegate.shared?.applyUpdateIfAvailable(nil)
             }
         }
     }

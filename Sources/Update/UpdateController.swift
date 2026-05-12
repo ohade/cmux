@@ -169,6 +169,12 @@ class UpdateController {
                 self.installCancellable = nil
                 return
             }
+            if case .updateAvailable = state {
+                guard self.shouldProceedWithUpdateRelaunch(source: "installUpdate") else {
+                    self.installCancellable = nil
+                    return
+                }
+            }
             state.confirm()
         }
     }
@@ -189,6 +195,10 @@ class UpdateController {
 
                 if case .updateAvailable = state {
                     UpdateLogStore.shared.append("attemptUpdate auto-confirming available update")
+                    guard self.shouldProceedWithUpdateRelaunch(source: "attemptUpdate") else {
+                        self.stopAttemptUpdateMonitoring()
+                        return
+                    }
                     state.confirm()
                     return
                 }
@@ -203,6 +213,14 @@ class UpdateController {
             }
 
         checkForUpdates()
+    }
+
+    private func shouldProceedWithUpdateRelaunch(source: String) -> Bool {
+        let proceed = AppDelegate.shared?.shouldProceedWithUpdateRelaunch(source: source) ?? true
+        if !proceed {
+            UpdateLogStore.shared.append("update relaunch blocked by session restore hook (\(source))")
+        }
+        return proceed
     }
 
     /// Check for updates (used by the menu item).

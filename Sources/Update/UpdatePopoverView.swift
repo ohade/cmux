@@ -293,7 +293,7 @@ fileprivate struct UpdateAvailableView: View {
                     Spacer()
 
                     Button(String(localized: "common.installAndRelaunch", defaultValue: "Install and Relaunch")) {
-                        update.reply(.install)
+                        AppDelegate.shared?.applyUpdateIfAvailable(nil)
                         dismiss()
                     }
                     .keyboardShortcut(.defaultAction)

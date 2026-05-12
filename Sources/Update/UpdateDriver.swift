@@ -127,6 +127,12 @@ class UpdateDriver: NSObject, SPUUserDriver {
 
     func showReady(toInstallAndRelaunch reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void) {
         UpdateLogStore.shared.append("show ready to install")
+        guard AppDelegate.shared?.shouldProceedWithUpdateRelaunch(source: "showReady") != false else {
+            UpdateLogStore.shared.append("update relaunch blocked by session restore hook (showReady)")
+            reply(.dismiss)
+            setState(.idle)
+            return
+        }
         reply(.install)
     }
 

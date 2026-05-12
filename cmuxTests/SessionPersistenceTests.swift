@@ -98,6 +98,18 @@ final class SessionPersistenceTests: XCTestCase {
         XCTAssertEqual(visibleFrame.y, 25, accuracy: 0.001)
     }
 
+    func testSessionRestoreLifecycleHooksDefaultToNoopBehavior() {
+        let hooks = SessionRestoreLifecycleHooks.noop
+        let snapshot = makeSnapshot(version: SessionSnapshotSchema.currentVersion)
+
+        XCTAssertTrue(hooks.shouldProceedWithUpdateRelaunch("test"))
+        XCTAssertNil(hooks.restorableAgentIndexForSnapshot(.autosave))
+
+        let overlaid = hooks.overlayStartupSessionSnapshot(snapshot)
+        XCTAssertEqual(overlaid.version, snapshot.version)
+        XCTAssertEqual(overlaid.windows.count, snapshot.windows.count)
+    }
+
     func testLoadReopenSessionSnapshotRequiresPreviousSnapshotFile() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("cmux-session-tests-\(UUID().uuidString)", isDirectory: true)
