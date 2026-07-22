@@ -773,6 +773,47 @@ struct SessionPersistenceTTYMetadataTests {
     }
 
     @MainActor
+    @Test("non-persistent remote TTY names are neither persisted nor restored")
+    func nonPersistentRemoteTTYNamesAreNeitherPersistedNorRestored() throws {
+        let source = Workspace()
+        source.configureRemoteConnection(
+            WorkspaceRemoteConfiguration(
+                destination: "dev@example.com",
+                port: 2222,
+                identityFile: nil,
+                sshOptions: [],
+                localProxyPort: nil,
+                relayPort: nil,
+                relayID: nil,
+                relayToken: nil,
+                localSocketPath: nil,
+                terminalStartupCommand: "ssh -p 2222 dev@example.com",
+                preserveAfterTerminalExit: false
+            ),
+            autoConnect: false
+        )
+        let sourcePanelId = try #require(source.focusedPanelId)
+        source.surfaceTTYNames[sourcePanelId] = "pts/ephemeral"
+
+        var snapshot = source.sessionSnapshot(includeScrollback: false)
+        let panelIndex = try #require(snapshot.panels.firstIndex { $0.id == sourcePanelId })
+        #expect(snapshot.panels[panelIndex].ttyName == nil)
+        #expect(snapshot.panels[panelIndex].terminal?.remotePTYSessionID == nil)
+
+        // Existing releases may have persisted a remote shell's host-local PTY
+        // even though there is no durable session to reattach after relaunch.
+        snapshot.panels[panelIndex].ttyName = "pts/legacy-ephemeral"
+
+        let restored = Workspace()
+        let restoredPanelIds = restored.restoreSessionSnapshot(snapshot)
+        let restoredPanelId = try #require(restoredPanelIds[sourcePanelId])
+        #expect(restored.remoteConfiguration?.preserveAfterTerminalExit == false)
+        #expect(restored.remotePTYSessionIDsByPanelId[restoredPanelId] == nil)
+        #expect(restored.surfaceTTYNames[restoredPanelId] == nil)
+        #expect(restored.surfaceTTYDevices[restoredPanelId] == nil)
+    }
+
+    @MainActor
     @Test("managed Cloud VM TTY names are neither persisted nor restored")
     func managedCloudVMTTYNamesAreNeitherPersistedNorRestored() throws {
         let source = Workspace()
