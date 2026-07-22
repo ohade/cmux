@@ -714,7 +714,7 @@ struct SessionPersistenceTTYMetadataTests {
         #expect(restored.surfaceTTYDevices[secondRestoredPanelId] == nil)
 
         // A subsequent live runtime report still establishes exactly one
-        // current owner and refreshes the device-id index used by AMQ routing.
+        // current owner and refreshes the device-id index used for live lookup.
         restored.surfaceTTYNames[firstRestoredPanelId] = "/dev/null"
         #expect(restored.surfaceTTYNames[firstRestoredPanelId] == "/dev/null")
         #expect(restored.surfaceTTYNames[secondRestoredPanelId] == nil)
